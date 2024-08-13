@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lean Six Sigma Process Simulator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to right, #243B55, #141E30);
+            color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 15px 25px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        h1, h2 {
+            color: #FFD700;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #FFD700;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.8);
+            color: #333;
+            font-size: 1em;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease;
+        }
+
+        .input-group input:focus {
+            background-color: rgba(255, 255, 255, 1);
+        }
+
+        .tooltip {
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: #FFD700;
+            color: #333;
+            padding: 5px;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .btn {
+            background-color: #FFD700;
+            color: #333;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.2em;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #FFA500;
+        }
+
+        .results, .suggestions, .metric-explanations {
+            margin-top: 30px;
+            font-size: 1.2em;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .error {
+            color: #FF6B6B;
+            font-weight: bold;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(255, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-indicator {
+            font-style: italic;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .btn {
+                font-size: 1em;
+            }
+
+            .results, .suggestions, .metric-explanations {
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Lean Six Sigma Process Simulator</h1>
+    <div class="input-group">
+        <label for="cycleTime">Cycle Time (minutes)</label>
+        <input type="number" id="cycleTime" placeholder="Enter cycle time" min="0" step="0.01">
+        <div class="tooltip">?
+            <span class="tooltip-text">The average time taken to complete one unit of production.</span>
+        </div>
+    </div>
+    <div class="input-group">
+        <label for="defects">Defects Per Million Opportunities (DPMO)</label>
+        <input type="number" id="defects" placeholder="Enter DPMO" min="0" max="1000000" step="1">
+        <div class="tooltip">?
+            <span class="tooltip-text">The number of defects per million opportunities for a defect to occur.</span>
+        </div>
+    </div>
+    <div class="input-group">
+        <label for="unitsProduced">Units Produced Per Hour</label>
+        <input type="number" id="unitsProduced" placeholder="Enter units produced per hour" min="0" step="1">
+        <div class="tooltip">?
+            <span class="tooltip-text">The number of units produced in one hour of operation.</span>
+        </div>
+    </div>
+    <div class="input-group">
+        <label for="downtime">Downtime (minutes per hour)</label>
+        <input type="number" id="downtime" placeholder="Enter downtime" min="0" max="60" step="0.1">
+        <div class="tooltip">?
+            <span class="tooltip-text">The amount of time the process is not running within an hour.</span>
+        </div>
+    </div>
+    <button class="btn" onclick="simulateProcess()">Simulate Process</button>
+
+    <div class="error" id="error"></div>
+    <div class="results" id="results"></div>
+    <div class="suggestions" id="suggestions"></div>
+    <div class="metric-explanations" id="metric-explanations"></div>
+</div>
+
+<script>
+    // Load saved inputs on page load
+    window.onload = function() {
+        const savedInputs = JSON.parse(localStorage.getItem('leanSixSigmaInputs'));
+        if (savedInputs) {
+            document.getElementById('cycleTime').value = savedInputs.cycleTime;
+            document.getElementById('defects').value = savedInputs.defects;
+            document.getElementById('unitsProduced').value = savedInputs.unitsProduced;
+            document.getElementById('downtime').value = savedInputs.downtime;
+        }
+    }
+
+    function validateInputs() {
+        const inputs = {
+            cycleTime: parseFloat(document.getElementById('cycleTime').value),
+            defects: parseFloat(document.getElementById('defects').value),
+            unitsProduced: parseFloat(document.getElementById('unitsProduced').value),
+            downtime: parseFloat(document.getElementById('downtime').value)
+        };
+
+        const validationRules = {
+            cycleTime: { min: 0, max: Infinity, message: "Cycle time must be positive" },
+            defects: { min: 0, max: 1000000, message: "DPMO must be between 0 and 1,000,000" },
+            unitsProduced: { min: 1, max: Infinity, message: "Units produced must be at least 1" },
+            downtime: { min: 0, max: 60, message: "Downtime must be between 0 and 60 minutes" }
+        };
+
+        for (const [key, value] of Object.entries(inputs)) {
+            if (isNaN(value) || value < validationRules[key].min || value > validationRules[key].max) {
+                document.getElementById('error').textContent = validationRules[key].message;
+                return false;
+            }
+        }
+
+        document.getElementById('error').textContent = "";
+        return true;
+    }
+
+    function simulateProcess() {
+        if (!validateInputs()) {
+            document.getElementById('results').innerHTML = "";
+            document.getElementById('suggestions').innerHTML = "";
+            document.getElementById('metric-explanations').innerHTML = "";
+            return;
+        }
+
+        // Get input values
+        const cycleTime = parseFloat(document.getElementById('cycleTime').value);
+        const defects = parseFloat(document.getElementById('defects').value);
+        const unitsProduced = parseFloat(document.getElementById('unitsProduced').value);
+        const downtime = parseFloat(document.getElementById('downtime').value);
+
+        // Save inputs to local storage
+        localStorage.setItem('leanSixSigmaInputs', JSON.stringify({
+            cycleTime, defects, unitsProduced, downtime
+        }));
+
+        // Calculate efficiency metrics
+        const uptime = 60 - downtime;
+        const productionRate = unitsProduced; // Units per hour is already given
+        const defectRate = defects / 1000000; // Convert DPMO to a decimal
+        const efficiency = (uptime / 60) * 100;
+
+        // Calculate Sigma level
+        const yieldPercentage = (1 - defectRate) * 100;
+        const sigmaLevel = calculateSigmaLevel(yieldPercentage);
+
+        // Calculate Takt time
+        const taktTime = (uptime * 60) / unitsProduced; // in seconds
+
+        // Calculate Process Capability Index (Cpk)
+        const cpk = (sigmaLevel / 3) * ((1 - defectRate) / 0.5);
+
+        // Calculate Overall Equipment Effectiveness (OEE)
+        const availability = uptime / 60;
+        const performance = (unitsProduced * cycleTime) / uptime;
+        const quality = 1 - defectRate;
+        const oee = availability * performance * quality * 100;
+
+        // Output results
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = `
+            <h2>Process Metrics:</h2>
+            ${createMetricRow('Production Rate', productionRate.toFixed(2) + ' units/hour', productionRate > 200 ? 'high' : productionRate < 50 ? 'low' : '')}
+            ${createMetricRow('Defect Rate', (defectRate * 100).toFixed(4) + '%', defectRate > 0.01 ? 'high' : defectRate < 0.001 ? 'low' : '')}
+            ${createMetricRow('Process Efficiency', efficiency.toFixed(2) + '%', efficiency > 85 ? 'high' : efficiency < 60 ? 'low' : '')}
+            ${createMetricRow('Sigma Level', sigmaLevel.toFixed(2) + 'σ', sigmaLevel > 5 ? 'high' : sigmaLevel < 3 ? 'low' : '')}
+            ${createMetricRow('Takt Time', taktTime.toFixed(2) + ' seconds', '')}
+            ${createMetricRow('Process Capability Index (Cpk)', cpk.toFixed(2), cpk > 1.33 ? 'high' : cpk < 1 ? 'low' : '')}
+            ${createMetricRow('Overall Equipment Effectiveness (OEE)', oee.toFixed(2) + '%', oee > 85 ? 'high' : oee < 60 ? 'low' : '')}
+        `;
+
+        // Generate improvement suggestions
+        generateSuggestions(productionRate, defectRate, efficiency, sigmaLevel, taktTime, cpk, oee);
+
+        // Display metric explanations
+        displayMetricExplanations();
+    }
+
+    function createMetricRow(label, value, indicator) {
+        return `
+            <div class="metric-row">
+                <span><strong>${label}:</strong> ${value}</span>
+                <span class="metric-indicator">${indicator}</span>
+            </div>
+        `;
+    }
+
+    function calculateSigmaLevel(yield) {
+        if (yield >= 99.9997) return 6;
+        if (yield >= 99.98) return 5;
+        if (yield >= 99.4) return 4;
+        if (yield >= 93.3) return 3;
+        if (yield >= 69.2) return 2;
+        if (yield >= 30.9) return 1;
+        return 0;
+    }
+
+    function generateSuggestions(productionRate, defectRate, efficiency, sigmaLevel, taktTime, cpk, oee) {
+        let suggestions = "<h2>Process Improvement Suggestions:</h2><ul>";
+
+        if (efficiency < 80) {
+            suggestions += "<li>Consider implementing 5S or TPM to reduce downtime and increase efficiency.</li>";
+        }
+
+        if (defectRate > 0.0001) {
+            suggestions += "<li>Implement Statistical Process Control (SPC) to reduce defects and improve quality.</li>";
+        }
+
+        if (sigmaLevel < 4) {
+            suggestions += "<li>Conduct a thorough Root Cause Analysis to identify and address major sources of variation.</li>";
+        }
+
+        if (cpk < 1.33) {
+            suggestions += "<li>Review process parameters and tolerances to improve process capability.</li>";
+        }
+
+        if (oee < 85) {
+            suggestions += "<li>Focus on improving availability, performance, and quality to increase Overall Equipment Effectiveness.</li>";
+        }
+
+        if (taktTime > cycleTime) {
+            suggestions += "<li>Consider line balancing or adding capacity to meet customer demand more effectively.</li>";
+        }
+
+        suggestions += "</ul>";
+
+        document.getElementById('suggestions').innerHTML = suggestions;
+    }
+
+    function displayMetricExplanations() {
+        const explanations = `
+            <h2>Metric Explanations:</h2>
+            <p><strong>Production Rate:</strong> The number of units produced per hour. It indicates the speed of the production process. 
+            <br>Range: Low &lt; 50 units/hour, High &gt; 200 units/hour (varies by industry)</p>
+            
+            <p><strong>Defect Rate:</strong> The percentage of defective units produced. A lower defect rate indicates better quality. 
+            <br>Range: Low &lt; 0.1%, High &gt; 1%</p>
+            
+            <p><strong>Process Efficiency:</strong> The percentage of time the process is running effectively. Higher efficiency means less waste. 
+            <br>Range: Low &lt; 60%, High &gt; 85%</p>
+            
+            <p><strong>Sigma Level:</strong> A measure of process capability. Higher sigma levels indicate fewer defects and better process control. 
+            <br>Range: Low &lt; 3σ, High &gt; 5σ</p>
+            
+            <p><strong>Takt Time:</strong> The maximum time allowed to produce one unit to meet customer demand. It helps balance production flow. 
+            <br>Range: Depends on customer demand and available production time</p>
+            
+            <p><strong>Process Capability Index (Cpk):</strong> A measure of how well the process can produce output within specification limits. Higher Cpk values indicate better process capability. 
+            <br>Range: Low &lt; 1.0, High &gt; 1.33</p>
+            
+            <p><strong>Overall Equipment Effectiveness (OEE):</strong> A measure of manufacturing productivity that takes into account availability, performance, and quality. Higher OEE indicates better utilization of manufacturing resources. 
+            <br>Range: Low &lt; 60%, World Class &gt; 85%</p>
+        `;
+
+        document.getElementById('metric-explanations').innerHTML = explanations;
+    }
+</script>
+
+</body>
+</html>
